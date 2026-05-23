@@ -1,5 +1,13 @@
 import ipaddress
 import sys
+from pathlib import Path
+
+# Usage:
+# $ mkdir subnet_masks
+# make txt files in it where each line is a comma-separated subnet mask list in CIDR notation
+# Python-like comments are allowed
+# example: $ python3 WireGuard_Excluded_IPs.py "f('file3',f('file1','file2'))"
+# first arg for f is allowed ips, second is disallowed ips
 
 
 def parse_ip_networks(ip_list_str):
@@ -117,71 +125,29 @@ def sort_networks(networks):
     # Combine the lists with all IPv4 addresses first, then IPv6
     return ipv4_sorted + ipv6_sorted
 
+def file2input(fn):
+    with open(Path('subnet_masks')/f'{fn}.txt','r') as f:
+        return ','.join(filter(lambda x:x and x[0]!='#',map(lambda x:x.strip(),f.read().strip().splitlines())))
+
+def f(inp1,inp2):
+    if type(inp1) is str:
+        allowed_input=file2input(inp1)
+        allowed_networks, invalid_allowed = parse_ip_networks(allowed_input)
+        assert not invalid_allowed
+    else:
+        allowed_networks=inp1
+    if type(inp2) is str:
+        disallowed_input=file2input(inp2)
+        disallowed_networks, invalid_disallowed = parse_ip_networks(disallowed_input)
+        assert not invalid_disallowed
+    else:
+        disallowed_networks=inp2
+    excluded_allowed_networks = exclude_networks(allowed_networks, disallowed_networks)
+    sorted_networks = sort_networks(excluded_allowed_networks)
+    return sorted_networks
 
 def main(unittest=False):
-    allowed_input = ""
-    disallowed_input = ""
-    allowed_networks = []
-    disallowed_networks = []
-
-    # Validate command line arguments
-    if len(sys.argv) == 3:
-        allowed_input = sys.argv[1]
-        disallowed_input = sys.argv[2]
-    elif len(sys.argv) == 2:
-        disallowed_input = sys.argv[1]
-    else:
-        print("Wrong number of arguments provided, falling back to interactive mode.")
-        # Reset inputs to fall back to interactive mode
-        allowed_input = ""
-        disallowed_input = ""
-
-    # Validate and parse command line arguments or get user input if arguments are invalid or not provided.
-    if allowed_input:
-        allowed_networks, invalid_allowed = parse_ip_networks(allowed_input)
-        if invalid_allowed:
-            print("Invalid Allowed IPs: " + ", ".join(invalid_allowed))
-            allowed_networks = (
-                []
-            )  # Reset to empty to trigger interactive mode for allowed IPs
-
-    if disallowed_input:  # This ensures it won't run if there's no disallowed_input
-        disallowed_networks, invalid_disallowed = parse_ip_networks(disallowed_input)
-        if invalid_disallowed:
-            print("Invalid Disallowed IPs: " + ", ".join(invalid_disallowed))
-            disallowed_networks = (
-                []
-            )  # Reset to empty to trigger interactive mode for disallowed IPs
-
-    # If inputs were invalid or not provided, switch to interactive mode.
-    if not allowed_networks and not len(sys.argv) == 2:
-        allowed_networks = get_input_and_parse(
-            "Enter the Allowed IPs, comma separated (e.g., 0.0.0.0/0):\n"
-        )
-
-    if not disallowed_networks:
-        disallowed_networks = get_input_and_parse(
-            "Enter the Disallowed IPs, comma separated (e.g., 10.0.0.0/8,127.0.0.0/8,172.16.0.0/12,192.168.0.0/16):\n"
-        )
-
-    # Process the IP networks.
-    excluded_allowed_networks = exclude_networks(allowed_networks, disallowed_networks)
-
-    # Sort the networks with IPv4 first, then IPv6.
-    sorted_networks = sort_networks(excluded_allowed_networks)
-
-    if not sorted_networks:
-        print("Error: No IPs are allowed based on the provided input.")
-        sys.exit(1)
-
-    # Print the initial inputs and final result.
-    print("Input:")
-    print("AllowedIPs = " + ", ".join(map(str, allowed_networks)))
-    print("DisallowedIPs = " + ", ".join(map(str, disallowed_networks)))
-    print()
-    print("=======================")
-    print()
-    print("Output:")
+    sorted_networks = eval(sys.argv[1])
     print("AllowedIPs = " + ", ".join(map(str, sorted_networks)))
 
     if unittest:
@@ -190,3 +156,4 @@ def main(unittest=False):
 
 if __name__ == "__main__":
     main()
+
